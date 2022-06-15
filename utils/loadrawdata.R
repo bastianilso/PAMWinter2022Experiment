@@ -69,6 +69,7 @@ LoadFromDirectory <- function(dir, event = "Event", sample = "Sample", meta = "M
       add_column(SessionID= NA)
     
   }
+
   dataset <- MergeDatasets(df_meta, df_event, df_sample)
   
   return(dataset)

@@ -7,7 +7,8 @@ options("digits.secs"=6)
 # Load data from directories
 # For some reason we only have original data from Participant 1-10 in the folder.
 # So load the data from the RDA file instead!
-D <- LoadFromDirectory("data/PAM", event="Game")
+D <- LoadFromDirectory("data/PAM", event="Game", sample="BlinkLog")
+D <- LoadFromDirectory("testdata2/PAM/", event="Game", sample="BlinkLog")
 save(D, file = 'data_pam_raw.rda', compress=TRUE)
 
 #load('data_pam_raw.rda')
@@ -15,7 +16,7 @@ save(D, file = 'data_pam_raw.rda', compress=TRUE)
 #############
 # Format D
 #############
-D <- D %>% rename(ConditionLabel = Condition, Condition = i3, Participant = i2)
+D <- D %>% rename(ConditionLabel = Condition, Condition = i4, Participant = i3)
 
 D <-D %>% mutate(Participant = as.numeric(Participant),
                  Framecount = as.numeric(Framecount))
@@ -54,10 +55,10 @@ D <- D %>% mutate(TrialFeedback = NA,
 #cv <- D %>% group_by(Participant, Condition, TrialFeedback) %>% filter(Event == "GameDecision") %>%
 #   summarize(n())
 # 
-D %>% filter(Participant == 1, Condition == "AS", Event != "Sample") %>%
-  select(Participant, Condition, Timestamp, Event,
-         InputWindowOrder, TrialResult, TrialFeedback,
-         fishFeedback, fishLost) %>% view()
+#D %>% filter(Participant == 1, Condition == "AS", Event != "Sample") %>%
+#  select(Participant, Condition, Timestamp, Event,
+#         InputWindowOrder, TrialResult, TrialFeedback,
+#         fishFeedback, fishLost) %>% view()
 
 D = D %>% mutate(Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%OS")) %>%
   arrange(Timestamp) %>%
@@ -96,10 +97,10 @@ D = D %>% mutate(InputWindowClosedID = NA,
 # Create InputWindowOrderFilled column - an identifier for open periods.
 # Test: D %>% filter(Participant == 6) %>% select(Event, Participant, Condition, InputWindowOrderWithDecision,InputWindowOrderFilled, InputWindow, InputWindowClosedFill) %>% view()
 D = D %>% group_by(Participant, Condition) %>% 
-  mutate(InputWindowOrder = ifelse(Event == "GameStopped", -1, InputWindowOrder),
-         InputWindowOrder = ifelse(Event == "GameRunning", -1, InputWindowOrder),
+  mutate(InputWindowOrder = ifelse(Event == "GameStopped", "-1", InputWindowOrder),
+         InputWindowOrder = ifelse(Event == "GameRunning", "-1", InputWindowOrder),
          InputWindowOrderWithDecision = InputWindowOrder,
-         InputWindowOrder = ifelse(InputWindow == "Closed", -1, InputWindowOrder),
+         InputWindowOrder = ifelse(InputWindow == "Closed", "-1", InputWindowOrder),
          Period = NA,
          Period = ifelse(Event == "InputWindowChange" & InputWindow == "Closed", "RestPeriod", Period),
          Period = ifelse(Event == "InputWindowChange" & InputWindowClosedID == max(InputWindowClosedID, na.rm=T), "PostGame", Period),
@@ -111,11 +112,36 @@ D = D %>% group_by(Participant, Condition) %>%
 
 # InputWindowOrder should be numeric but can contain the value "Stopped"
 # if the game was interrupted. Change "Stopped" to NA.
-D <-D %>% mutate(InputWindowOrder = as.numeric(InputWindowOrder))
+D <-D %>% mutate(InputWindowOrder = as.numeric(InputWindowOrder),
+                 InputWindowOrderWithDecision = as.numeric(InputWindowOrderWithDecision),
+                 InputWindowOrderFilled = as.numeric(InputWindowOrderFilled))
 
-
+D = D %>% group_by(Participant, Condition) %>%
+  mutate(time_thres = lead(time_delta < 1.0),
+         not_same = InputWindowOrderFilled != lead(InputWindowOrderFilled),
+         not_na = InputWindowOrderFilled == -1,
+         InputWindowOrderFilledSoft = ifelse( InputWindowOrderFilled != lead(InputWindowOrderFilled) &
+                                                InputWindowOrderFilled == -1 & 
+                                                lead(time_delta) < 1.0, lead(InputWindowOrderFilled), InputWindowOrderFilled),
+         InputWindowOrderFilledSoft = ifelse(InputWindowOrderFilled != lag(InputWindowOrderFilled) &
+                                               InputWindowOrderFilled == -1 & 
+                                               time_delta > 1.0, lag(InputWindowOrderFilled), InputWindowOrderFilledSoft),
+         InputWindowOrderFilledSoft = ifelse(InputWindowOrderFilled != lag(InputWindowOrderFilled,2) &
+                                               InputWindowOrderFilled == -1 & 
+                                               time_delta+lag(time_delta) > 1.0, lag(InputWindowOrderFilled,2), InputWindowOrderFilledSoft),
+         InputWindowOrderFilledSoft = ifelse( InputWindowOrderFilled != lead(InputWindowOrderFilled,2) &
+                                                InputWindowOrderFilled == -1 & 
+                                                lead(time_delta)+lead(time_delta,2) < 1.0, lead(InputWindowOrderFilled,2), InputWindowOrderFilledSoft))
 
 #############
+# Filter out invalid conditions
+#############
+
+valid_conditions = c("AS", "NO", "IO", "MF")
+
+D = D %>% filter(Condition %in% valid_conditions)
+
+############
 # Load Likert Data
 #############
 
@@ -124,7 +150,15 @@ D <-D %>% mutate(InputWindowOrder = as.numeric(InputWindowOrder))
 # Load data from Google Sheets
 L <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1f27a167SGqvY_k1g2M8sopxzuDERl3y8qkYYheKkers/edit#gid=237988817')
 
+# Mutate Easiest/Hardest
+L = L %>% mutate(Easiest = ifelse(Easiest == "Yes",1,0),
+                 Easiest = ifelse(is.na(Easiest),0,Easiest),
+                 Hardest = ifelse(Hardest == "Yes",1,0),
+                 Hardest = ifelse(is.na(Hardest),0,Hardest))
+
 D <- D %>% left_join(L, by=c('Condition' = 'Condition', 'Participant' = 'Participant'))
+
+
 
 #############
 # Save to RDA

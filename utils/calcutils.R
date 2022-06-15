@@ -32,6 +32,7 @@ g_lme_table <- function(lmes) {
     models = tibble(Predicted = p, nullmodel = NA, model = form_null, AIC = NA, BIC = NA, logLik = NA,
                     `Pr(>Chisq)` = NA, R2m = NA, R2c = NA, p_pass = T, r2_pass = T,
                     npar = NA, Chisq = NA, Df = NA, deviance = NA)
+
     models = models %>% bind_rows(g_lme_add(df, p, random, form_base, form_null, threshold, models, "random"))
     form_null = models %>% filter(p_pass, r2_pass) %>% arrange(R2m) %>% select(model) %>% slice(n()) %>% pull()
     models = models %>% bind_rows(g_lme_add(df, p, fixed, form_base, form_null, threshold, models, "fixed"))
