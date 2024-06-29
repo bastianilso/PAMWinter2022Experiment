@@ -15,6 +15,7 @@ fig <- plot_ly() %>%
 load('data_pam.rda')
 
 posTrialLabels = c("OverrideInput","AccInput","AugSuccess","ExplicitSham","AssistSuccess")
+posTrialLabels_user = c("AccInput","AugSuccess","AssistSuccess")
 
 #############
 # Summaries
@@ -129,7 +130,7 @@ Si <- D %>% ungroup() %>% filter(PeriodOrder != "-1") %>% group_by(Participant, 
 # Group by input window. Count the number of attempts in each window.
 St = Si %>% group_by(Participant, Condition) %>%
   summarize(blink_recog_trial = sum(blink_recog_window > 0),
-            blink_conv_trial = sum(blink_recog_window > 0 & TrialResult %in% posTrialLabels),
+            blink_conv_trial = sum(blink_recog_window > 0 & TrialResult %in% posTrialLabels_user),
             blink_recog_window = sum(blink_recog_window),
             blink_recog_window_count = sum(blink_recog_window_count),
             time_window = sum(time_window),
@@ -444,7 +445,7 @@ cri = tibble(lv_perc = c(0.1, 0.35,0.68,0.82,1.1,1.5,2.2),
              lv_fish = c(0,2,4,6,10,12,14),
              lv_lost = c(8,4,2,1,0,-1,-2))
 
-St_table <- St %>% group_by(Condition) %>% select(Participant, PercNormalized, FrustNormalized, rate_blink, accRecogRate, rate_feedback,
+St_table <- St %>% group_by(Condition) %>% select(Participant, PercNormalized, FrustNormalized, blink_recog_trial, rate_feedback,
                                                   fishCaught, fishLost) %>%
   mutate(
     Condition = ifelse (Condition == "MF", "Mit. Failure", Condition),
@@ -453,29 +454,26 @@ St_table <- St %>% group_by(Condition) %>% select(Participant, PercNormalized, F
     Condition = ifelse (Condition == "IO", "Input Override", Condition),
     perc_c = t_color(PercNormalized, cri$lv_perc, cri$colors),
     frust_c = t_color(FrustNormalized, cri$lv_frust, cri$colors),
-    rate_c = t_color(rate_blink, cri$lv_rate, cri$colors),
-    rate_acc_c = t_color(accRecogRate, cri$lv_rate, cri$colors),
+    rate_c = t_color(blink_recog_trial, cri$lv_rate, cri$colors),
     feedback_c = t_color(rate_feedback, cri$lv_rate, cri$colors),
     fish_c = t_color(fishCaught, cri$lv_fish, cri$colors),
     lost_c = t_color(fishLost, cri$lv_lost, cri$colors),
     PercNormalized = format(round(PercNormalized,2), nsmall = 2),
     FrustNormalized = format(round(FrustNormalized,2), nsmall = 2),
-    rate_blink = paste0(format(round(rate_blink * 100,0), nsmall = 0),"\\%"),
+    blink_recog_trial = paste0(format(round(blink_recog_trial * 100,0), nsmall = 0),"\\%"),
     rate_feedback = paste0(format(round(rate_feedback * 100, 0), nsmall = 0), "\\%"),
-    accRecogRate =  paste0(format(round(accRecogRate * 100,0), nsmall = 0),"\\%"),
     PercNormalized = paste0("\\cellcolor{", perc_c, "}", PercNormalized),
     FrustNormalized = paste0("\\cellcolor{", frust_c, "}", FrustNormalized),
-    rate_blink = paste0("\\cellcolor{", rate_c, "}", rate_blink),
-    accRecogRate = paste0("\\cellcolor{", rate_acc_c, "}", accRecogRate),
+    blink_recog_trial = paste0("\\cellcolor{", rate_c, "}", blink_recog_trial),
     rate_feedback = paste0("\\cellcolor{", feedback_c, "}", rate_feedback),
     fishCaught = paste0("\\cellcolor{", fish_c, "}", fishCaught),
     fishLost = paste0("\\cellcolor{", lost_c, "}", fishLost),
     perc_c = NULL, frust_c = NULL, rate_c = NULL, rate_acc_c = NULL, feedback_c = NULL,
     lost_c = NULL, fish_c = NULL,
     across(everything(), as.character)) %>% arrange(Condition) %>%
-  rename(`Perc. Control` = PercNormalized, `Frustration` = FrustNormalized, `Blink Conv. Rate` = rate_blink,
+  rename(`Perc. Control` = PercNormalized, `Frustration` = FrustNormalized, `Blink Recognition` = blink_recog_trial,
          `Pos. Feedback` = rate_feedback, `Fish Caught` = fishCaught, `Fish Lost` = fishLost,
-         `Blink Recognition` = accRecogRate,) %>%
+         ) %>%
   pivot_longer(cols=-c(Participant, Condition), names_to = "Variable") %>%
   pivot_wider(names_from = Participant, values_from = value)
 
